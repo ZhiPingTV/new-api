@@ -1,0 +1,30 @@
+# new-api systemd unit (binary deployment, SQLite)
+#
+# Install:
+#   sudo cp deploy/new-api.service /etc/systemd/system/new-api.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now new-api
+#   sudo systemctl status new-api
+#
+# Layout (see deploy/README.md):
+#   /opt/new-api/new-api        the compiled linux/amd64 binary
+#   /opt/new-api/one-api.db     SQLite database (created on first run)
+#   /opt/new-api/logs/          application logs
+#   /opt/new-api/.env           environment variables (SESSION_SECRET, TZ, ...)
+
+[Unit]
+Description=New API Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/new-api
+EnvironmentFile=-/opt/new-api/.env
+ExecStart=/opt/new-api/new-api --port 3000 --log-dir /opt/new-api/logs
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

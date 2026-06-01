@@ -1,0 +1,17 @@
+# Append this block to the server's /etc/caddy/Caddyfile, then:
+#   sudo systemctl reload caddy
+#
+# Caddy obtains and renews a free HTTPS certificate automatically.
+# The A record llm.hupan.info -> <ECS public IP> must resolve first.
+
+llm.hupan.info {
+	encode zstd gzip
+
+	log {
+		output file /var/log/caddy/new-api.access.log
+		format console
+	}
+
+	# new-api listens on 127.0.0.1:3000
+	reverse_proxy 127.0.0.1:3000
+}
