@@ -10,7 +10,7 @@ automatic HTTPS, and with the database **backed up to Aliyun OSS** on a daily cr
 | Domain | `llm.hupan.info` (ICP 浙ICP备2025214951号-1) |
 | App port | `127.0.0.1:3000` (not exposed publicly; Caddy proxies it) |
 | Database | SQLite at `/opt/new-api/one-api.db` |
-| Backups | `oss://zp-brain/new-api-backup/`, daily 03:00, 14-day retention |
+| Backups | `oss://zp-brain/llm.hupan.info/db-backup/`, daily 03:00, 14-day retention |
 
 ## 1. Build the binary (local machine)
 
@@ -92,14 +92,14 @@ ssh root@47.98.197.148 'echo "0 3 * * * /opt/new-api/backup.sh >> /opt/new-api/b
 ```
 
 `backup.sh` takes a consistent online snapshot (`sqlite3 .backup`, WAL-safe),
-gzips it, uploads to `oss://zp-brain/new-api-backup/`, and prunes local and
+gzips it, uploads to `oss://zp-brain/llm.hupan.info/db-backup/`, and prunes local and
 remote copies older than 14 days. Remote pruning only matches our own
 `one-api-YYYYmmdd-HHMMSS.db.gz` objects under the prefix.
 
 ### Restore
 
 ```bash
-ossutil cp oss://zp-brain/new-api-backup/one-api-YYYYmmdd-HHMMSS.db.gz ./restore.db.gz -e oss-cn-hangzhou.aliyuncs.com
+ossutil cp oss://zp-brain/llm.hupan.info/db-backup/one-api-YYYYmmdd-HHMMSS.db.gz ./restore.db.gz -e oss-cn-hangzhou.aliyuncs.com
 gunzip restore.db.gz
 systemctl stop new-api
 cp restore.db /opt/new-api/one-api.db

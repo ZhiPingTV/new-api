@@ -26,8 +26,11 @@ set -euo pipefail
 # ---- configuration (override via /opt/new-api/backup.env) -------------------
 DB_FILE="${DB_FILE:-/opt/new-api/one-api.db}"
 LOCAL_DIR="${LOCAL_DIR:-/opt/new-api/backups}"
+# NOTE: zp-brain is a SHARED bucket. Keep everything for this deployment under a
+# dedicated top-level prefix named after the domain, so it never mixes with other
+# projects' data. Backups live under <domain>/db-backup/.
 OSS_BUCKET="${OSS_BUCKET:-zp-brain}"
-OSS_PREFIX="${OSS_PREFIX:-new-api-backup}"
+OSS_PREFIX="${OSS_PREFIX:-llm.hupan.info/db-backup}"
 OSS_REGION="${OSS_REGION:-cn-hangzhou}"
 OSS_ENDPOINT="${OSS_ENDPOINT:-oss-cn-hangzhou-internal.aliyuncs.com}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
@@ -85,8 +88,11 @@ find "$LOCAL_DIR" -maxdepth 1 -name 'one-api-*.db.gz' -mtime +"$RETENTION_DAYS" 
 # 5) remote retention — only our own dated objects under the prefix
 cutoff="$(date -d "-${RETENTION_DAYS} days" +%Y%m%d 2>/dev/null || true)"
 if [ -n "$cutoff" ]; then
+	# regex-safe copies of the bucket/prefix (escape every char that is special in ERE)
+	esc_bucket="$(printf '%s' "$OSS_BUCKET" | sed 's/[.[\*^$()+?{|]/\\&/g')"
+	esc_prefix="$(printf '%s' "$OSS_PREFIX" | sed 's/[.[\*^$()+?{|]/\\&/g')"
 	"$OSSUTIL" ls "oss://${OSS_BUCKET}/${OSS_PREFIX}/" --region "$OSS_REGION" -e "$OSS_ENDPOINT" 2>/dev/null \
-		| grep -oE "oss://${OSS_BUCKET}/${OSS_PREFIX}/one-api-[0-9]{8}-[0-9]{6}\.db\.gz" \
+		| grep -oE "oss://${esc_bucket}/${esc_prefix}/one-api-[0-9]{8}-[0-9]{6}\.db\.gz" \
 		| while read -r obj; do
 			d="$(echo "$obj" | grep -oE 'one-api-[0-9]{8}' | grep -oE '[0-9]{8}')"
 			if [ -n "$d" ] && [ "$d" -lt "$cutoff" ]; then
