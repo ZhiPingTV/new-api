@@ -63,16 +63,22 @@ Caddy issues and renews the HTTPS certificate automatically once DNS resolves.
 
 ## 5. OSS backup
 
-Install ossutil and configure credentials **once**:
+Install ossutil v2 and configure credentials **once**:
 
 ```bash
 ssh root@47.98.197.148
-# install ossutil (v1)
-curl -o /usr/local/bin/ossutil https://gosspublic.alicdn.com/ossutil/1.7.19/ossutil64
-chmod +x /usr/local/bin/ossutil
-# configure credentials for the backup user (scoped to bucket zp-brain ideally)
-ossutil config -e oss-cn-hangzhou.aliyuncs.com -i <ACCESS_KEY_ID> -k <ACCESS_KEY_SECRET>
+cd /tmp
+curl -fsSL -o ossutil.zip https://gosspublic.alicdn.com/ossutil/v2/2.3.0/ossutil-2.3.0-linux-amd64.zip
+echo "3ae4d9fc85a7a6e9f5654d1599766f1a3a42a3692870887b5ae9338d582ef65a  ossutil.zip" | sha256sum -c -
+unzip -o ossutil.zip && install -m 0755 ossutil-2.3.0-linux-amd64/ossutil /usr/local/bin/ossutil
+
+# configure credentials (ossutil v2 uses signature v4 — region is REQUIRED).
+# Use a RAM-user AccessKey scoped to bucket zp-brain if possible.
+ossutil config   # set: region=cn-hangzhou, AccessKeyID, AccessKeySecret
 ```
+
+`backup.sh` uploads via the internal endpoint `oss-cn-hangzhou-internal.aliyuncs.com`
+(no public traffic charge, since the ECS and bucket are both in cn-hangzhou).
 
 Deploy the backup script and cron:
 

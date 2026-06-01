@@ -14,7 +14,12 @@
 #   0 3 * * * /opt/new-api/backup.sh >> /opt/new-api/backups/backup.log 2>&1
 #
 # OSS credentials come from ossutil's config file (~/.ossutilconfig by default),
-# created once with:  ossutil config -e oss-cn-hangzhou.aliyuncs.com -i <AK> -k <SK>
+# created once with:  ossutil config   (set region=cn-hangzhou, AK id/secret)
+#
+# ossutil v2 uses signature v4 and REQUIRES a region. The ECS and the bucket are
+# both in cn-hangzhou, so we default to the internal endpoint
+# (oss-cn-hangzhou-internal.aliyuncs.com) — faster and free of public traffic
+# charges. Override OSS_ENDPOINT to a public endpoint if running off-Aliyun.
 
 set -euo pipefail
 
@@ -23,7 +28,8 @@ DB_FILE="${DB_FILE:-/opt/new-api/one-api.db}"
 LOCAL_DIR="${LOCAL_DIR:-/opt/new-api/backups}"
 OSS_BUCKET="${OSS_BUCKET:-zp-brain}"
 OSS_PREFIX="${OSS_PREFIX:-new-api-backup}"
-OSS_ENDPOINT="${OSS_ENDPOINT:-oss-cn-hangzhou.aliyuncs.com}"
+OSS_REGION="${OSS_REGION:-cn-hangzhou}"
+OSS_ENDPOINT="${OSS_ENDPOINT:-oss-cn-hangzhou-internal.aliyuncs.com}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
 OSSUTIL="${OSSUTIL:-ossutil}"
 
@@ -69,7 +75,7 @@ log "compressed -> $GZ ($SIZE)"
 # 3) upload to OSS
 OSS_DEST="oss://${OSS_BUCKET}/${OSS_PREFIX}/${NAME}.gz"
 log "uploading -> $OSS_DEST"
-"$OSSUTIL" cp -f "$GZ" "$OSS_DEST" -e "$OSS_ENDPOINT" >/dev/null
+"$OSSUTIL" cp -f "$GZ" "$OSS_DEST" --region "$OSS_REGION" -e "$OSS_ENDPOINT" >/dev/null
 log "upload ok"
 
 # 4) local retention
@@ -79,13 +85,13 @@ find "$LOCAL_DIR" -maxdepth 1 -name 'one-api-*.db.gz' -mtime +"$RETENTION_DAYS" 
 # 5) remote retention — only our own dated objects under the prefix
 cutoff="$(date -d "-${RETENTION_DAYS} days" +%Y%m%d 2>/dev/null || true)"
 if [ -n "$cutoff" ]; then
-	"$OSSUTIL" ls "oss://${OSS_BUCKET}/${OSS_PREFIX}/" -e "$OSS_ENDPOINT" 2>/dev/null \
+	"$OSSUTIL" ls "oss://${OSS_BUCKET}/${OSS_PREFIX}/" --region "$OSS_REGION" -e "$OSS_ENDPOINT" 2>/dev/null \
 		| grep -oE "oss://${OSS_BUCKET}/${OSS_PREFIX}/one-api-[0-9]{8}-[0-9]{6}\.db\.gz" \
 		| while read -r obj; do
 			d="$(echo "$obj" | grep -oE 'one-api-[0-9]{8}' | grep -oE '[0-9]{8}')"
 			if [ -n "$d" ] && [ "$d" -lt "$cutoff" ]; then
 				log "prune-remote $obj"
-				"$OSSUTIL" rm "$obj" -e "$OSS_ENDPOINT" -f >/dev/null || true
+				"$OSSUTIL" rm "$obj" --region "$OSS_REGION" -e "$OSS_ENDPOINT" -f >/dev/null || true
 			fi
 		done
 fi
